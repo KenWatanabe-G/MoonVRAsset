@@ -16,66 +16,20 @@ public class MoonTerrainImpoter : MonoBehaviour
     public UnityEngine.Object moonImgFile;
     public UnityEngine.Object moonLblFile;
 
+
+    public void SmoothTerrain()
+    {
+        Terrain terrain = GetComponent<Terrain>();
+        int w = terrain.terrainData.heightmapWidth;
+        int h = terrain.terrainData.heightmapHeight;
+        var data = terrain.terrainData.GetHeights(0, 0, w, h);
+        var smoothData = smooth(data);
+        terrain.terrainData.SetHeights(0, 0, smoothData);
+    }
+
 #if UNITY_EDITOR
-    int[] readImgFile(MoonLabel labelData)
-    {
-        var split = AssetDatabase.GetAssetPath(this.moonImgFile).Split('/');
-        var path = Application.dataPath + "/";
-        for (int i = 1; i < split.Length - 1; i++)
-        {
-            path += split[i] + "/";
-        }
-        path += split[split.Length - 1];
 
-        FileStream fileStream = new FileStream(path, FileMode.Open, FileAccess.Read);
-        BinaryReader bin = new BinaryReader(fileStream);
-        byte[] bs = new byte[(int)bin.BaseStream.Length];
-        bs = bin.ReadBytes((int)bin.BaseStream.Length);
-        fileStream.Close();
-
-        if (BitConverter.IsLittleEndian)
-            bs = bs.Reverse().ToArray();
-
-        int[] data = new int[bs.Length / 2];
-        for (int i = 0; i < data.Length; i++)
-        {
-            if (labelData.sampleType == MoonLabel.SampleType.MSB_INTEGER)
-            {
-                data[i] = BitConverter.ToInt16(bs, i * 2);
-            }
-            else
-            {
-                data[i] = BitConverter.ToUInt16(bs, i * 2);
-            }
-        }
-
-        return data;
-    }
-
-    MoonLabel readLblFile()
-    {
-        var split = AssetDatabase.GetAssetPath(this.moonLblFile).Split('/');
-        var path = Application.dataPath + "/";
-        for (int i = 1; i < split.Length - 1; i++)
-        {
-            path += split[i] + "/";
-        }
-        path += split[split.Length - 1];
-
-        StreamReader fileStream = new StreamReader(path);
-        var data = fileStream.ReadToEnd();
-
-        if (gameObject.GetComponent<MoonLabel>())
-        {
-            DestroyImmediate(gameObject.GetComponent<MoonLabel>());
-        }
-        var moonLabel = gameObject.AddComponent<MoonLabel>();
-        moonLabel.LoadData(data);
-
-        return moonLabel;
-    }
-
-    public void makeTerrain()
+    public void MakeTerrain()
     {
         MoonLabel labelData = readLblFile();
         int[] readData = readImgFile(labelData);
@@ -114,14 +68,101 @@ public class MoonTerrainImpoter : MonoBehaviour
                 data[y, x] = height;
             }
         }
+
         terrain.terrainData.SetHeights(0, 0, data);
     }
-    #endif
+
+    private int[] readImgFile(MoonLabel labelData)
+    {
+        var split = AssetDatabase.GetAssetPath(this.moonImgFile).Split('/');
+        var path = Application.dataPath + "/";
+        for (int i = 1; i < split.Length - 1; i++)
+        {
+            path += split[i] + "/";
+        }
+        path += split[split.Length - 1];
+
+        FileStream fileStream = new FileStream(path, FileMode.Open, FileAccess.Read);
+        BinaryReader bin = new BinaryReader(fileStream);
+        byte[] bs = new byte[(int)bin.BaseStream.Length];
+        bs = bin.ReadBytes((int)bin.BaseStream.Length);
+        fileStream.Close();
+
+        if (BitConverter.IsLittleEndian)
+            bs = bs.Reverse().ToArray();
+
+        int[] data = new int[bs.Length / 2];
+        for (int i = 0; i < data.Length; i++)
+        {
+            if (labelData.sampleType == MoonLabel.SampleType.MSB_INTEGER)
+            {
+                data[i] = BitConverter.ToInt16(bs, i * 2);
+            }
+            else
+            {
+                data[i] = BitConverter.ToUInt16(bs, i * 2);
+            }
+        }
+
+        return data;
+    }
+
+    private MoonLabel readLblFile()
+    {
+        var split = AssetDatabase.GetAssetPath(this.moonLblFile).Split('/');
+        var path = Application.dataPath + "/";
+        for (int i = 1; i < split.Length - 1; i++)
+        {
+            path += split[i] + "/";
+        }
+        path += split[split.Length - 1];
+
+        StreamReader fileStream = new StreamReader(path);
+        var data = fileStream.ReadToEnd();
+
+        if (gameObject.GetComponent<MoonLabel>())
+        {
+            DestroyImmediate(gameObject.GetComponent<MoonLabel>());
+        }
+        var moonLabel = gameObject.AddComponent<MoonLabel>();
+        moonLabel.LoadData(data);
+
+        return moonLabel;
+    }
+
+    private float[,] smooth(float[,] data)
+    {
+        float[,] rtn = new float[data.GetLength(0), data.GetLength(1)];
+        Array.Copy(data, rtn, data.Length);
+
+        int d = 3;
+        int count = (2 * d + 1) * (2 * d + 1);
+        for (int i = d; i < data.GetLength(0) - d; i++)
+        {
+            for (int j = d; j < data.GetLength(1) - d; j++)
+            {
+                float sum = 0;
+                for (int x = i - d; x <= i + d; x++)
+                {
+                    for (int y = j - d; y <= j + d; y++)
+                    {
+                        sum += data[x, y];
+                    }
+                }
+                float average = sum / count;
+                rtn [i, j] = average;
+            }
+        }
+
+        return rtn;
+    }
+
+#endif
 }
 
 #if UNITY_EDITOR
 [CustomEditor(typeof(MoonTerrainImpoter))]//拡張するクラスを指定
-public class ExampleScriptEditor : Editor
+public class MoonTerrainImpoterEditor : Editor
 {
     public override void OnInspectorGUI()
     {
@@ -130,7 +171,13 @@ public class ExampleScriptEditor : Editor
         if (GUILayout.Button("Make Terrain"))
         {
             MoonTerrainImpoter impoter = target as MoonTerrainImpoter;
-            impoter.makeTerrain();
+            impoter.MakeTerrain();
+        }
+
+        if (GUILayout.Button("Smooth Terrain"))
+        {
+            MoonTerrainImpoter impoter = target as MoonTerrainImpoter;
+            impoter.SmoothTerrain();
         }
     }
 }
