@@ -16,6 +16,7 @@ public class MoonTerrainImpoter : MonoBehaviour
     public UnityEngine.Object moonImgFile;
     public UnityEngine.Object moonLblFile;
 
+#if UNITY_EDITOR
 
     public void SmoothTerrain()
     {
@@ -26,8 +27,6 @@ public class MoonTerrainImpoter : MonoBehaviour
         var smoothData = smooth(data);
         terrain.terrainData.SetHeights(0, 0, smoothData);
     }
-
-#if UNITY_EDITOR
 
     public void MakeTerrain()
     {
